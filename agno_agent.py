@@ -99,7 +99,7 @@ def agendar_cita(especialidad: str, paciente: str, telefono: str, email: str,
             # Si no se especifica, usar la primera disponible
             cita_seleccionada = citas_disponibles[0]
         
-        # Agregar a Hoja 1 (citas agendadas)
+        # Agregar a Hoja 1 y marcar como no disponible en Hoja 2
         sheets_tool.agregar_cita_agendada(
             paciente=paciente,
             medico=cita_seleccionada['medico'],
@@ -107,7 +107,8 @@ def agendar_cita(especialidad: str, paciente: str, telefono: str, email: str,
             fecha=cita_seleccionada['fecha'],
             hora=cita_seleccionada['hora'],
             telefono=telefono,
-            email=email
+            email=email,
+            fila_disponibilidad=cita_seleccionada['fila']
         )
         
         return f"""✅ ¡Cita agendada exitosamente!

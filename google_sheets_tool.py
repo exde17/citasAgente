@@ -77,38 +77,74 @@ class GoogleSheetsTool:
         encabezados = datos[0]
         citas_disponibles = []
         
-        for i, fila in enumerate(datos[1:], start=2):
-            if len(fila) >= len(encabezados):
-                try:
-                    estado_idx = encabezados.index('Estado')
-                    especialidad_idx = encabezados.index('Especialidad')
-                    
-                    estado = fila[estado_idx] if estado_idx < len(fila) else ""
-                    espec = fila[especialidad_idx] if especialidad_idx < len(fila) else ""
-                    
-                    if estado.lower() == 'disponible':
-                        if especialidad is None or espec.lower() == especialidad.lower():
-                            cita = {
-                                'fila': i,
-                                'medico': fila[0] if len(fila) > 0 else "",
-                                'especialidad': espec,
-                                'hora': fila[2] if len(fila) > 2 else "",
-                                'fecha': fila[3] if len(fila) > 3 else "",
-                                'estado': estado
-                            }
-                            citas_disponibles.append(cita)
-                except ValueError:
-                    continue
+        # Buscar índices de columnas
+        try:
+            medico_idx = encabezados.index('Médico')
+            especialidad_idx = encabezados.index('Especialidad')
+            hora_idx = encabezados.index('Hora')
+            fecha_idx = encabezados.index('Fecha')
+            estado_idx = encabezados.index('Estado')
+        except ValueError as e:
+            print(f"Error: No se encontró columna esperada: {e}")
+            return []
         
+        for i, fila in enumerate(datos[1:], start=2):
+            if len(fila) > max(medico_idx, especialidad_idx, hora_idx, fecha_idx, estado_idx):
+                estado = fila[estado_idx].strip().lower()
+                espec = fila[especialidad_idx].strip()
+                
+                # Depuración
+                print(f"Fila {i}: Estado='{estado}', Especialidad='{espec}'")
+                
+                if estado == 'disponible':
+                    # Búsqueda flexible: "Pediatría" coincide con "Pediatra"
+                    if especialidad is None or \
+                       especialidad.lower() in espec.lower() or \
+                       espec.lower() in especialidad.lower():
+                        cita = {
+                            'fila': i,
+                            'medico': fila[medico_idx],
+                            'especialidad': espec,
+                            'hora': fila[hora_idx],
+                            'fecha': fila[fecha_idx],
+                            'estado': fila[estado_idx]
+                        }
+                        citas_disponibles.append(cita)
+        
+        print(f"Total citas disponibles encontradas para '{especialidad}': {len(citas_disponibles)}")
         return citas_disponibles
     
     def agregar_cita_agendada(self, paciente: str, medico: str, especialidad: str, 
-                             fecha: str, hora: str, telefono: str, email: str) -> bool:
-        """Agrega una cita agendada a Hoja 1"""
+                             fecha: str, hora: str, telefono: str, email: str, fila_disponibilidad: int) -> bool:
+        """Agrega una cita agendada a Hoja 1 y marca como no disponible en Hoja 2"""
         try:
+            # Agregar a Hoja 1
             valores = [fecha, hora, paciente, medico, especialidad, "Confirmada", telefono, email]
             self.write_row(valores, sheet_name="Hoja 1", range_name="A:H")
+            
+            # Marcar como no disponible en Hoja 2
+            self.marcar_como_no_disponible(fila_disponibilidad)
             return True
         except Exception as e:
             print(f"Error al agregar cita agendada: {e}")
+        return False
+    
+    def marcar_como_no_disponible(self, row_number: int) -> bool:
+        """Marca una cita como no disponible en Hoja 2"""
+        try:
+            datos = self.read_sheet(sheet_name="Hoja 2")
+            if row_number < len(datos):
+                fila = list(datos[row_number - 1])
+                # Buscar el índice de Estado
+                encabezados = datos[0]
+                try:
+                    estado_idx = encabezados.index('Estado')
+                    if estado_idx < len(fila):
+                        fila[estado_idx] = 'no disponible'
+                    self.update_row(row_number, fila, sheet_name="Hoja 2")
+                    return True
+                except ValueError:
+                    print("No se encontró columna 'Estado'")
+        except Exception as e:
+            print(f"Error al marcar como no disponible: {e}")
         return False
